@@ -1,0 +1,3 @@
+/app/services/schedule/src/main/java/wethinkcode/schedule/routes/ScheduleController.java
+/app/services/schedule/src/main/java/wethinkcode/schedule/transfer/ScheduleDAO.java
+/app/services/schedule/src/main/java/wethinkcode/schedule/ScheduleService.java

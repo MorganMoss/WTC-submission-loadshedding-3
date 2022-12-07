@@ -6,11 +6,8 @@
     <version>1.0</version>
     <packaging>pom</packaging>
     <modules>
-        <module>places</module>
-        <module>stage</module>
-        <module>schedule</module>
-        <module>web</module>
         <module>common</module>
+        <module>services</module>
     </modules>
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

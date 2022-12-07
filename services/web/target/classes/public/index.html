@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>LightInTheSched</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="shortcut icon" href="#">
+    </head>
+    <body>
+        <div>
+            <h1>Loadshedding Stage <span id="stage">?</span></h1>
+            <h2 id="description"></h2>
+            <p></p>
+            <div id="app">
+                <form id="get-schedule">
+                <table>
+                    <tbody>
+                    <tr>
+                        <td>
+                            <label for="provinces"></label>
+                            <select id="provinces" style="width: 300px" ></select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                        <label for="municipalities"></label>
+                        <select id="municipalities" style="width: 300px"></select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>
+                            <label for="places"></label>
+                            <select id="places" style="width: 300px"></select>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+                </form>
+
+                <div id="content"></div>
+            </div>
+        </div>
+
+
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.7.7/handlebars.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/vanilla-router@1.2.8/index.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.1/dist/jquery.min.js"></script>
+
+        <script src="templates/not-found-template.js"></script>
+        <script src="templates/error-template.js"></script>
+
+        <script type="module" src="/scripts/routes.js"></script>
+    </body>
+</html>
