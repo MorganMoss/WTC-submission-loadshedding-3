@@ -77,11 +77,7 @@ public class PlacesService {
         try {
             return new PlacesCsvParser().parseCsvSource(databaseFile);
         } catch (IOException e) {
-            System.err.println("File error has occurred. This is due to the data.csv file being broken or missing");
-            System.err.println("Stacktrace: ");
-            e.printStackTrace();
-            System.exit(1);
-            return null;
+            throw new RuntimeException(e);
         }
     }
 

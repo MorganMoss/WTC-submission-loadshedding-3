@@ -11,7 +11,6 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static wethinkcode.logger.Logger.formatted;
 import static wethinkcode.service.messages.ErrorHandler.publishError;
@@ -75,7 +74,13 @@ public class Properties{
         logger = formatted(this.getClass().getSimpleName() + " " + service.instance.getClass().getSimpleName(),
                 "\u001B[38;5;129m", "\u001B[38;5;165m");
 
-        loadProperties(service.instance.getClass());
+        logger.info(
+                "CLI Argument Contents: \n \u001B[38;5;205m"
+                        + Arrays.stream(args)
+                        .map(arg -> "\t" + arg)
+                        .collect(Collectors.joining("\n"))
+
+        );
 
         ArrayList<Object> objects = new ArrayList<>(List.of(this, service, service.instance));
         if (!Broker.ACTIVE){
@@ -84,21 +89,18 @@ public class Properties{
             objects.add(new Broker());
         }
 
+
+        objects.forEach(object -> safeExecute(object, getArgsToParse(object, args)));
+
+        loadProperties(service.instance.getClass());
+
         HashMap<Object, String[]> propertiesArgsForObjects = getArgsFromProperties(objects.toArray());
 
+
+
         propertiesArgsForObjects.forEach((object, propertiesArgs) -> {
-            String[] cliArgs = getArgsToParse(object, args);
-            String[] combinedArgs = Stream.of(
-                    cliArgs,
-                    Arrays
-                        .stream(propertiesArgs)
-                        .filter(arg -> {
-                            String name = Arrays.stream(arg.split("=")).map(String::strip).findFirst().get();
-                            return !Arrays.stream(cliArgs).toList().contains(name);
-                            }
-                        )
-                        .toArray(String[]::new)).flatMap(Arrays::stream).toArray(String[]::new);
-            safeExecute(object, combinedArgs);
+            safeExecute(object, propertiesArgs);
+            safeExecute(object, getArgsToParse(object, args));
         });
     }
 
@@ -141,7 +143,7 @@ public class Properties{
     private static String[] getArgsToParse(Object o, String ... args){
         return  Arrays
                 .stream(args)
-                .filter(arg -> getArgNames(o).stream().anyMatch(arg::contains))
+                .filter(arg -> getArgNames(o).stream().anyMatch((name) -> arg.split("=")[0].strip().equals(name)))
                 .toArray(String[]::new);
     }
 
@@ -243,7 +245,7 @@ public class Properties{
      */
     private void safeExecute(Object o, String ... args){
         if (args.length == 0){
-            logger.info(o.getClass().getSimpleName() + " has no arguments to parse.");
+//            logger.info(o.getClass().getSimpleName() + " has no arguments to parse.");
             return;
         }
         logger.info(

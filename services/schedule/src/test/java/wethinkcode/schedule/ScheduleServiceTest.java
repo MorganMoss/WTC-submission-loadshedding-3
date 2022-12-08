@@ -24,20 +24,10 @@ public class ScheduleServiceTest
 
     @BeforeAll
     static void startPlacesService() throws IOException {
-        places = new Service<>(new PlacesService()).execute("-o=false", "-p=3222");
-        stage = new Service<>(new StageService()).execute("-o=false", "-p=1234");
+        places = new Service<>(new PlacesService()).execute("--port=3222");
+        stage = new Service<>(new StageService()).execute("--port=1234");
 
-        File config = new File("test.properties");
-        config.deleteOnExit();
-        //noinspection ResultOfMethodCallIgnored
-        config.delete();
-        if (config.createNewFile()){
-           try(FileWriter r = new FileWriter(config)) {
-               r.write("places=http://localhost:3222");
-           }
-        }
-
-        schedule = new Service<>(new ScheduleService()).execute("-o=false", "-c="+config.getAbsolutePath());
+        schedule = new Service<>(new ScheduleService()).execute("--places=http://localhost:3222", "--port=5678");
     }
 
     @AfterAll

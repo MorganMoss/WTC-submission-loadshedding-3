@@ -39,7 +39,7 @@ public class Service<E>{
     static {
         try {
             Broker.start();
-            ErrorHandler.start();
+//            ErrorHandler.start();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

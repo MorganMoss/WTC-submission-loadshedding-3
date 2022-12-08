@@ -41,20 +41,16 @@ public class ScheduleServiceAPITest
 
     @BeforeAll
     public static void initTestScheduleFixture() throws IOException {
-        places = new Service<>(new PlacesService())
-                .execute("-o=false", "-p=3221");
-
-        File config = new File("test-api.properties");
-        config.deleteOnExit();
-        if (config.createNewFile()){
-            try(FileWriter r = new FileWriter(config)) {
-                r.write("places=http://localhost:3221");
-            }
-        }
+        places = new Service<>(new PlacesService()).execute("-o=false", "-p=3221");
 
         stage = new Service<>(new StageService()).execute("-o=false","-p=1234");
 
-        schedule = new Service<>(new ScheduleService()).execute("-p=" + TEST_PORT, "-c="+config.getAbsolutePath());
+        schedule = new Service<>(new ScheduleService()).execute("-p=" + TEST_PORT, "--places=http://localhost:3221");
+        try {
+            Thread.sleep(1000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @AfterAll
