@@ -45,7 +45,7 @@ public class ScheduleServiceAPITest
 
         stage = new Service<>(new StageService()).execute("-o=false","-p=1234");
 
-        schedule = new Service<>(new ScheduleService()).execute("-p=" + TEST_PORT, "--places=http://localhost:3221");
+        schedule = new Service<>(new ScheduleService()).execute("-p=" + TEST_PORT, "-pl=http://localhost:3221");
         try {
             Thread.sleep(1000);
         } catch (InterruptedException e) {

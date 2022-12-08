@@ -133,8 +133,6 @@ public class Service<E>{
 
             if (handleMethods(methods, RunBefore.class)){
                 logger.info("Initialization Methods Run");
-            } else {
-                logger.info("No Initialization Methods to run");
             }
 
             activate();
@@ -142,19 +140,13 @@ public class Service<E>{
 
             if (handleMethods(methods, RunAfter.class)){
                 logger.info("Post Methods Run");
-            } else {
-                logger.info("No Post Methods to run");
             }
             if (startListening(methods)){
                 logger.info("Message Listeners Active");
-            } else {
-                logger.info("No Message Listeners found");
             }
 
             if (startPublishing(instance.getClass().getFields())){
                 logger.info("Message Publishers Active");
-            } else {
-                logger.info("No Message Publishers found");
             }
 
             return this;

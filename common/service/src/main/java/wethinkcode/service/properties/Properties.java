@@ -82,71 +82,18 @@ public class Properties{
 
         );
 
-        ArrayList<Object> objects = new ArrayList<>(List.of(this, service, service.instance));
-        if (!Broker.ACTIVE){
-            //I've instantiated it because this instance will be ignored anyway
-            //as all cli options are going to be static.
-            objects.add(new Broker());
-        }
-
-
-        objects.forEach(object -> safeExecute(object, getArgsToParse(object, args)));
-
+        safeExecute(this, getArgsForObject(this, args));
         loadProperties(service.instance.getClass());
 
-        HashMap<Object, String[]> propertiesArgsForObjects = getArgsFromProperties(objects.toArray());
+        if (!Broker.ACTIVE){
+            Broker b = new Broker();
+            safeExecute(b, getArgsForObject(b, args));
+        }
 
-
-
-        propertiesArgsForObjects.forEach((object, propertiesArgs) -> {
-            safeExecute(object, propertiesArgs);
-            safeExecute(object, getArgsToParse(object, args));
-        });
+        List
+                .of(service, service.instance)
+                .forEach(object -> safeExecute(object, getArgsForObject(object, args)));
     }
-
-    /**
-     * This method is a static method that takes
-     * an Object instance as input
-     * and returns a list of argument names for the given object.
-     * The argument names are determined
-     * using reflection
-     * by finding all fields that are
-     * annotated with the CommandLine.Option
-     * annotation and extracting the names from the annotation.
-     * @param o an Object instance as input
-     * @return a list of argument names for the given object.
-     */
-    private static List<String> getArgNames(Object o){
-         return Arrays
-                .stream(o.getClass().getDeclaredFields())
-                .filter(field -> field.isAnnotationPresent(CommandLine.Option.class))
-                .map(field -> field.getAnnotation(CommandLine.Option.class))
-                .map(CommandLine.Option::names)
-                .flatMap(Arrays::stream)
-                .toList();
-    }
-
-    /**
-     * This method is a static method that takes
-     * an Object instance and a variable number
-     * of arguments as input and returns the subset
-     * of the given arguments that should be parsed
-     * by the given object. This method uses reflection
-     * to determine the argument names for the given object
-     * and filters the input arguments to only include those
-     * that contain one of the argument names.
-     * @param o an Object instance
-     * @param args given arguments
-     * @return the subset of the given arguments that should be parsed
-     * by the given object
-     */
-    private static String[] getArgsToParse(Object o, String ... args){
-        return  Arrays
-                .stream(args)
-                .filter(arg -> getArgNames(o).stream().anyMatch((name) -> arg.split("=")[0].strip().equals(name)))
-                .toArray(String[]::new);
-    }
-
 
     /**
      * This method takes a Class instance
@@ -245,7 +192,6 @@ public class Properties{
      */
     private void safeExecute(Object o, String ... args){
         if (args.length == 0){
-//            logger.info(o.getClass().getSimpleName() + " has no arguments to parse.");
             return;
         }
         logger.info(
@@ -264,27 +210,18 @@ public class Properties{
     }
 
     /**
-     * This method takes a list of Object instances
-     * as input and uses reflection to populate the
-     * empty fields of the given objects with the
-     * corresponding property values.
-     * @param objects to have their fields populated
+     * Looks in CLI then Properties to try get an argument to parse for each @Option annotated field.
+     * @param object that will be used when looking for args to parse
+     * @param args CLI args given
+     * @return The args to parse
      */
-    private HashMap<Object, String[]> getArgsFromProperties(Object ... objects){
-        HashMap<Object, String[]> argMap = new HashMap<>();
-        Arrays
-            .stream(objects)
-            .forEach(object -> {
-                            String[] args = Arrays
-                                    .stream(object.getClass().getFields())
-                                    .filter(field -> field.isAnnotationPresent(CommandLine.Option.class))
-                                    .map(this::populateEmptyField)
-                                    .filter(Objects::nonNull)
-                                    .toArray(String[]::new);
-                            argMap.put(object, args);
-                    }
-            );
-        return argMap;
+    private String[] getArgsForObject(Object object, String[] args){
+        return Arrays
+                .stream(object.getClass().getDeclaredFields())
+                .filter(field -> field.isAnnotationPresent(CommandLine.Option.class))
+                .map(field -> getArgForField(field, args))
+                .filter(Objects::nonNull)
+                .toArray(String[]::new);
     }
 
     /**
@@ -292,11 +229,22 @@ public class Properties{
      * @param field instance whereby the other values are found
      * @return a String representing the argument to be parsed.
      */
-    private String populateEmptyField(Field field) {
+    private String getArgForField(Field field, String[] args) {
         CommandLine.Option option = field.getDeclaredAnnotation(CommandLine.Option.class);
+        Optional<String> cliArg = Arrays.stream(args).filter(arg -> Arrays
+                        .stream(option.names())
+                        .anyMatch(name -> arg.split("=")[0].equals(name))
+                )
+                .findFirst();
+
+        if (cliArg.isPresent()) {
+            return cliArg.get();
+        }
+
         if (properties.get(field.getName()) == null){
             return null;
         }
+
         String name = option.names()[0];
         String value = (String) properties.get(field.getName());
         return name + "=" + value;
