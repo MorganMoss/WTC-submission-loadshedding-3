@@ -1,9 +1,9 @@
 package wethinkcode.places;
 
-import com.google.common.io.Resources;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
 import java.net.URISyntaxException;
+
+import com.google.common.io.Resources;
 import picocli.CommandLine;
 import wethinkcode.service.Service;
 
@@ -34,6 +34,7 @@ import wethinkcode.service.Service;
  * <dd>a file pathname referring to a CSV file of place-name data. This option
  *      <em>overrides</em> any value in a configuration file and will bypass any
  *      data-directory set via command-line or configuration.
+ * </dl>
  */
 @Service.AsService
 public class PlacesService {

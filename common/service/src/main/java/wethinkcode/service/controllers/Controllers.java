@@ -57,7 +57,6 @@ public class Controllers {
     }
 
     private Stream<EndpointGroup> findEndpoints(Class<?> clazz) {
-//        logger.info("Getting Endpoint Groups");
         return Arrays.stream(clazz.getDeclaredMethods())
                 .filter(method -> method.isAnnotationPresent(Endpoint.class))
                 .map(method -> {

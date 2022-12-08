@@ -1,8 +1,5 @@
 package wethinkcode.service.messages;
 
-import org.apache.qpid.jms.JmsConnectionFactory;
-import wethinkcode.service.Service;
-
 import javax.jms.*;
 import java.util.Queue;
 import java.util.logging.Logger;
@@ -10,6 +7,7 @@ import java.util.logging.Logger;
 import static wethinkcode.logger.Logger.formatted;
 import static wethinkcode.service.messages.Broker.getDestination;
 import static wethinkcode.service.messages.Broker.getSession;
+import static wethinkcode.service.messages.ErrorHandler.publishError;
 
 public class Publisher {
     private final Logger logger;
@@ -28,7 +26,7 @@ public class Publisher {
             MessageProducer producer = session.createProducer(destination);
             producer.setDeliveryMode(DeliveryMode.NON_PERSISTENT);
 
-            while (true){
+            while (Broker.ACTIVE){
                 if (messages.isEmpty()){
                     Thread.sleep(10);
                     continue;
@@ -38,7 +36,7 @@ public class Publisher {
                 logger.info("Sent Message: " + "\u001b[38;5;203m" + message);
             }
         } catch (JMSException | InterruptedException e) {
-            throw new RuntimeException(e);
+            publishError(e);
         }
     }
 }

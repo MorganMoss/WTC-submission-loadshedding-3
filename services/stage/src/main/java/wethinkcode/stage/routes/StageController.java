@@ -54,7 +54,7 @@ public class StageController{
         try {
             setStage(ctx.bodyAsClass(Stage.class), instance);
             ctx.status(HttpStatus.OK);
-        } catch (JsonParseException notStageJSON) {
+        } catch (JsonParseException | NullPointerException notStageJSON) {
             setStageLegacy(ctx, instance);
         }
     }

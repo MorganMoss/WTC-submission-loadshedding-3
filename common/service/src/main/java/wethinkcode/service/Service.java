@@ -7,9 +7,7 @@ import io.javalin.plugin.bundled.CorsPluginConfig;
 import picocli.CommandLine;
 import wethinkcode.service.controllers.Controllers;
 import wethinkcode.service.json.GSONMapper;
-import wethinkcode.service.messages.Listener;
-import wethinkcode.service.messages.Prefix;
-import wethinkcode.service.messages.Publisher;
+import wethinkcode.service.messages.*;
 
 import java.lang.annotation.*;
 import java.lang.reflect.Field;
@@ -25,7 +23,7 @@ import java.util.stream.Stream;
 
 import static wethinkcode.logger.Logger.formatted;
 import static wethinkcode.service.Checks.*;
-import static wethinkcode.service.messages.Broker.startBroker;
+import static wethinkcode.service.messages.ErrorHandler.publishError;
 import static wethinkcode.service.properties.Properties.populateFields;
 
 /**
@@ -37,26 +35,35 @@ import static wethinkcode.service.properties.Properties.populateFields;
  * @param <E> The type parameter for the user's class with the `Service` annotation
  */
 public class Service<E>{
+
+    static {
+        try {
+            Broker.start();
+            ErrorHandler.start();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+
     /**
      * The class annotated as a service
      */
     public final E instance;
-
     /**
      * The javalin server used to host this service.
      */
     private Javalin server;
-
     /**
      * Port for the service
      */
     @CommandLine.Option(
             names = {"--port", "-p"},
             description = "The name of a directory where CSV datafiles may be found. This option overrides and data-directory setting in a configuration file.",
-            type = Integer.class
+            type = Integer.class,
+            defaultValue = "0"
     )
     public Integer port=0;
-
     /**
      * Commands enables/disables
      */
@@ -66,7 +73,6 @@ public class Service<E>{
             type = Boolean.class
     )
     Boolean commands = false;
-
     /**
      * Domain of the server, default is localhost
      */
@@ -75,18 +81,15 @@ public class Service<E>{
             description = "The host name of the server"
     )
     String domain = "http://localhost";
-
-
     private static int SERVICE_COUNT = 0;
     private final Logger logger;
-
     /**
      * Used for waiting
      */
     private final Object lock = new Object();
-
     private boolean started = false;
     private boolean stopped = false;
+
 
     /**
      * Create a service instance.
@@ -106,52 +109,61 @@ public class Service<E>{
         checkClassAnnotation(instance.getClass());
         this.instance = instance;
         logger = formatted("Annotation Handler: " + instance.getClass().getSimpleName(),  "\u001B[38;5;215m", "\u001B[38;5;221m");
+        logger.info("Service " + instance.getClass().getSimpleName() + " has been created.");
     }
     /**
-     * This will set up and run the server
+     * This method sets up and runs the Javalin server instance.
+     * It creates a new instance of the given class with
+     * the Service annotation and initializes the
+     * properties of the class by calling the initProperties method.
+     * It also initializes the Javalin server by calling the initHttpServer method.
      * <br/><br/>
+     * @param args CLI arguments
      * @return A Service object with an instance of your class.
      */
     public Service<E> execute(String ... args){
-        SERVICE_COUNT++;
-        logger.info("Active Service Count: " + SERVICE_COUNT);
+        try {
+            SERVICE_COUNT++;
+            logger.info("Active Service Count: " + SERVICE_COUNT);
+            Method[] methods = instance.getClass().getMethods();
+            initProperties(args);
+            logger.info("Properties Instantiated");
+            initHttpServer(methods);
+            logger.info("Javalin Server Created");
 
-        Method[] methods = instance.getClass().getMethods();
-        initProperties(args);
-        logger.info("Properties Instantiated");
+            if (handleMethods(methods, RunBefore.class)){
+                logger.info("Initialization Methods Run");
+            } else {
+                logger.info("No Initialization Methods to run");
+            }
 
-        startBroker();
+            activate();
+            logger.info("Service Started");
 
-        initHttpServer(methods);
-        logger.info("Javalin Server Created");
+            if (handleMethods(methods, RunAfter.class)){
+                logger.info("Post Methods Run");
+            } else {
+                logger.info("No Post Methods to run");
+            }
+            if (startListening(methods)){
+                logger.info("Message Listeners Active");
+            } else {
+                logger.info("No Message Listeners found");
+            }
 
-        if (handleMethods(methods, RunBefore.class)){
-            logger.info("Initialization Methods Run");
-        } else {
-            logger.info("No Initialization Methods to run");
+            if (startPublishing(instance.getClass().getFields())){
+                logger.info("Message Publishers Active");
+            } else {
+                logger.info("No Message Publishers found");
+            }
+
+            return this;
+        } catch (Exception e){
+            //send errors to message queue.
+            publishError(e);
+            SERVICE_COUNT--;
+            return null;
         }
-
-        activate();
-        logger.info("Service Started");
-
-        if (handleMethods(methods, RunAfter.class)){
-            logger.info("Post Methods Run");
-        } else {
-            logger.info("No Post Methods to run");
-        }
-        if (startListening(methods)){
-            logger.info("Message Listeners Active");
-        } else {
-            logger.info("No Message Listeners found");
-        }
-
-        if (startPublishing(instance.getClass().getFields())){
-            logger.info("Message Publishers Active");
-        } else {
-            logger.info("No Message Publishers found");
-        }
-
-        return this;
     }
 
     /**
@@ -256,7 +268,6 @@ public class Service<E>{
     /**
      * Takes a service and runs it in a separate thread.
      */
-    @SuppressWarnings("SleepWhileHoldingLock")
     private void activate(){
         Thread t = new Thread(this::run);
         t.setName(this.instance.getClass().getSimpleName());
@@ -331,11 +342,13 @@ public class Service<E>{
 
         Method method = mapper.get(0);
         checkForNoArgs(method);
-        checkHasReturnType(method, JsonMapper.class);
+
         try {
             return (JsonMapper) method.invoke(instance);
         } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException(e);
+            publishError(e);
+            System.exit(1);
+            return null;
         }
     }
 
@@ -381,7 +394,7 @@ public class Service<E>{
                     method.invoke(instance, this);
                     logger.info("Invoked " + method.getName() + " successfully");
                 } catch (IllegalAccessException | InvocationTargetException e) {
-                    throw new RuntimeException(e);
+                    publishError(e);
                 }
                 return;
             }
@@ -391,7 +404,7 @@ public class Service<E>{
                 method.invoke(instance);
                 logger.info("Invoked " + method.getName() + " successfully");
             } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new RuntimeException(e);
+                publishError(e);
             }
         });
         thread.setName("Annotation Handler: " + method.getName());
@@ -423,9 +436,7 @@ public class Service<E>{
             javalinConfig -> {
                 handleCustomJavalinConfigs(methods, javalinConfig);
                 if (instance.getClass().getAnnotation(AsService.class).AnyHost()){
-                    javalinConfig.plugins.enableCors(cors -> {
-                        cors.add(CorsPluginConfig::anyHost);
-                    });
+                    javalinConfig.plugins.enableCors(cors -> cors.add(CorsPluginConfig::anyHost));
                 }
                 javalinConfig.jsonMapper(handleCustomJSONMapper(methods));
             }
@@ -449,6 +460,7 @@ public class Service<E>{
     public @interface AsService {
         /**
          * Boolean that when true will allow other origins to access these routes
+         * @return Allows all hosts if true
          */
         boolean AnyHost() default true;
     }
@@ -491,6 +503,7 @@ public class Service<E>{
     public @interface RunBefore {
         /**
          * Marks this method as one that accepts the service as an argument
+         * @return Will add Service object when invoking method if true
          */
         boolean withServiceAsArg() default false;
     }
@@ -508,6 +521,7 @@ public class Service<E>{
     public @interface RunAfter {
         /**
          * Marks this method as one that accepts the service as an argument
+         * @return Will add Service object when invoking method if true
          */
         boolean withServiceAsArg() default false;
     }
@@ -525,16 +539,19 @@ public class Service<E>{
     public @interface Listen {
         /**
          * The name of the queue or topic this method will listen on
+         * @return the name of the queue/topic
          */
         String destination();
 
         /**
          * prefix marking this as listening on a queue or topic
+         * @return if its a queue or topic
          */
         Prefix prefix() default Prefix.TOPIC;
 
         /**
          * Marks this method as one that accepts the service as a second argument
+         * @return Will add Service object when invoking method if true
          */
         boolean withServiceAsArg() default false;
     }
@@ -551,10 +568,12 @@ public class Service<E>{
     public @interface Publish {
         /**
          * The name of the queue or topic this method will listen on
+         * @return the name of the queue/topic
          */
         String destination();
         /**
          * prefix marking this as listening on a queue or topic
+         * @return if its a queue or topic
          */
         Prefix prefix() default Prefix.TOPIC;
     }
@@ -567,22 +586,6 @@ class Checks {
     static void checkForNoArgs(Method method){
         if (method.getGenericParameterTypes().length != 0) {
             throw new MethodTakesNoArgumentsException(method.getName() + " must have no arguments");
-        }
-    }
-
-    /**
-     * Checks if a method has the correct return type.
-     * @param method checked
-     * @param type the method should return
-     * @throws BadReturnTypeException if not correct
-     */
-    static void checkHasReturnType(Method method, Class<?> type) {
-        if (!method.getReturnType().equals(type)){
-            throw new BadReturnTypeException(
-                    method.getName() + " has a bad return type. \n"
-                            + "Expected: " +  type.getTypeName() + "\n"
-                            + "Actual: " + method.getReturnType().getSimpleName()
-            );
         }
     }
 
@@ -636,12 +639,6 @@ class MethodTakesNoArgumentsException extends RuntimeException {
 
 class ArgumentException extends RuntimeException {
     public ArgumentException(String message){
-        super(message);
-    }
-}
-
-class BadReturnTypeException extends RuntimeException {
-    public BadReturnTypeException(String message){
         super(message);
     }
 }

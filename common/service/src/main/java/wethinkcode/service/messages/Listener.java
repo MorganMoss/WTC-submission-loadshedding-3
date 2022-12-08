@@ -7,6 +7,7 @@ import java.util.logging.Logger;
 import static wethinkcode.logger.Logger.formatted;
 import static wethinkcode.service.messages.Broker.getDestination;
 import static wethinkcode.service.messages.Broker.getSession;
+import static wethinkcode.service.messages.ErrorHandler.publishError;
 
 public class Listener {
 
@@ -29,7 +30,7 @@ public class Listener {
         long start = System.currentTimeMillis();
         long count = 1;
             logger.info("Waiting for messages...");
-            while (true) {
+            while (Broker.ACTIVE) {
                 Message msg = consumer.receive();
                 if (msg instanceof TextMessage) {
                     String body = ((TextMessage) msg).getText();
@@ -46,7 +47,7 @@ public class Listener {
                 }
             }
         } catch (JMSException e) {
-            throw new RuntimeException(e);
+            publishError(e);
         }
     }
 }

@@ -31,10 +31,11 @@ public class StageService{
         }
     }
 
-    @Service.RunBefore()
+    @Service.RunBefore
     public void customServiceInitialisation() {
         setStage(Stage.STAGE0, this);
     }
+
 
     public static void main(String ... args){
        new Service<>(new StageService()).execute(args);

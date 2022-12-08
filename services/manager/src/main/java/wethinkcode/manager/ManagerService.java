@@ -1,5 +1,9 @@
 package wethinkcode.manager;
 
+import kong.unirest.HttpResponse;
+import kong.unirest.JsonNode;
+import kong.unirest.Unirest;
+import kong.unirest.UnirestException;
 import wethinkcode.places.PlacesService;
 import wethinkcode.schedule.ScheduleService;
 import wethinkcode.service.Service;
@@ -12,7 +16,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Properties;
+import java.util.Scanner;
 
+import static wethinkcode.service.messages.ErrorHandler.publishError;
 import static wethinkcode.service.properties.Properties.getDefaultPropertiesStream;
 
 @Service.AsService
@@ -58,6 +64,62 @@ public class ManagerService {
             setUpProperties(f, getDefaultPropertiesStream(service.getClass()), s);
 
             ports.put(s.port + ports.size() + 10, new Service<>(service).execute("-c="+f.getAbsolutePath()));
+        }
+    }
+
+    @Service.RunAfter
+    public void startManualRouteDebugger(){
+        Thread requester = new Thread(() ->
+        {
+            while (true) {
+                Scanner scanner = new Scanner(System.in);
+                String input = scanner.nextLine();
+
+                String[] inputArr = input.split(" ");
+
+                switch (inputArr[0].toLowerCase()) {
+                    case "get" ->
+                            runGetRequest(inputArr);
+                    case "post" ->
+                            runPostRequest(inputArr);
+                    default -> {
+                    }
+                }
+            }
+        });
+        requester.start();
+    }
+
+    // Method to run a Unirest.get request
+    static void runGetRequest(String[] inputArr) {
+        try {
+            String url = inputArr[1];
+            HttpResponse<JsonNode> response;
+            if (inputArr.length > 2) {
+                // If a JSON string was provided, include it in the request
+                String jsonString = inputArr[2];
+                response = Unirest.get(url).queryString("json", jsonString).asJson();
+            } else {
+                // If no JSON string was provided, run the request without it
+                response = Unirest.get(url).asJson();
+            }
+            // Log the result
+            System.out.println(response.getBody());
+        } catch (UnirestException e) {
+            publishError(e);
+        }
+    }
+
+    // Method to run a Unirest.post request
+    static void runPostRequest(String[] inputArr) {
+        try {
+            String url = inputArr[1];
+            String jsonString = inputArr[2];
+            HttpResponse<JsonNode> response = Unirest.post(url).body(jsonString).asJson();
+            // Log the result
+            System.out.println(response.getBody());
+        } catch (UnirestException e) {
+            publishError(e);
         }
     }
 
