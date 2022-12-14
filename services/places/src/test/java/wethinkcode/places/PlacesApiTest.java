@@ -59,7 +59,7 @@ public class PlacesApiTest
 
     @AfterAll
     public static void stopServer(){
-        SERVICE.close();
+        SERVICE.stop();
     }
 
     @Test

@@ -1,7 +1,5 @@
 package wethinkcode.schedule;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Optional;
 
@@ -32,9 +30,9 @@ public class ScheduleServiceTest
 
     @AfterAll
     static void closeAll() {
-        stage.close();
-        schedule.close();
-        places.close();
+        stage.stop();
+        schedule.stop();
+        places.stop();
     }
 
     @Test

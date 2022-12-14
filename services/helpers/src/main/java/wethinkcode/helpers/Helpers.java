@@ -26,12 +26,7 @@ public final class Helpers {
             String URL = Unirest.get(managerURL + "/service/" + from).asString().getBody();
             return URL.replace("\"", "");
         } catch (UnirestException e){
-            try {
-                Thread.sleep(400);
-            } catch (InterruptedException ex) {
-                throw new RuntimeException(ex);
-            }
-            return getURL(from, managerURL);
+            throw new RuntimeException(e);
         }
     }
 

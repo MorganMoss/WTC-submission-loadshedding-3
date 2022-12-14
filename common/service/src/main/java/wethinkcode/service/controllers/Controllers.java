@@ -16,6 +16,8 @@ import java.util.stream.Stream;
 
 import static org.reflections.scanners.Scanners.TypesAnnotated;
 import static wethinkcode.logger.Logger.formatted;
+import static wethinkcode.service.messages.AlertService.publishSevere;
+import static wethinkcode.service.messages.AlertService.publishWarning;
 
 public class Controllers {
 
@@ -63,7 +65,8 @@ public class Controllers {
                     try {
                         return (EndpointGroup) method.invoke(instance, instance);
                     } catch (IllegalAccessException | InvocationTargetException e) {
-                        throw new RuntimeException(e);
+                        publishSevere("Controllers", "Failed to invoke method " + instance.getClass().getSimpleName() + " : " +  method.getName(), e);
+                        return null;
                     }
                 });
     }
@@ -75,7 +78,11 @@ public class Controllers {
         logger.info(verb.name()+ (path.equals("") ? "":" for '" + path + "'") + " from the method " + method.getName());
         verb.invoke(path, (ctx) -> {
             logger.info("Invoking " + method.getName());
-            method.invoke(instance, ctx, instance);
+            try {
+                method.invoke(instance, ctx, instance);
+            } catch (InvocationTargetException e){
+                publishWarning(instance.getClass().getSimpleName(), "Failed to invoke " + method.getName());
+            }
         });
     }
 

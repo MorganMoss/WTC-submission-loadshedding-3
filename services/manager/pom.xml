@@ -13,12 +13,6 @@
     <dependencies>
         <dependency>
             <groupId>wethinkcode</groupId>
-            <artifactId>service</artifactId>
-            <version>1.0</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>wethinkcode</groupId>
             <artifactId>web</artifactId>
             <version>1.0</version>
             <scope>compile</scope>

@@ -9,11 +9,13 @@ import wethinkcode.service.controllers.Controllers;
 import wethinkcode.service.json.GSONMapper;
 import wethinkcode.service.messages.*;
 
+import javax.jms.JMSException;
 import java.lang.annotation.*;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Queue;
@@ -23,7 +25,7 @@ import java.util.stream.Stream;
 
 import static wethinkcode.logger.Logger.formatted;
 import static wethinkcode.service.Checks.*;
-import static wethinkcode.service.messages.ErrorHandler.publishError;
+import static wethinkcode.service.messages.AlertService.*;
 import static wethinkcode.service.properties.Properties.populateFields;
 
 /**
@@ -39,7 +41,7 @@ public class Service<E>{
     static {
         try {
             Broker.start();
-//            ErrorHandler.start();
+            AlertService.start();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -151,8 +153,7 @@ public class Service<E>{
 
             return this;
         } catch (Exception e){
-            //send errors to message queue.
-            publishError(e);
+            publishSevere(instance.getClass().getSimpleName(), "Failed to start", e);
             SERVICE_COUNT--;
             return null;
         }
@@ -162,15 +163,15 @@ public class Service<E>{
      * Stops this service
      * @throws AlreadyStoppedException if you try stop it a second time.
      */
-    public void close() throws AlreadyStoppedException{
+    public void stop() throws AlreadyStoppedException{
         if (stopped){
             throw new AlreadyStoppedException("This service is designed to be stopped once");
         }
         stopped = true;
-
         server.stop();
         SERVICE_COUNT--;
         logger.info("Active Service Count: " + SERVICE_COUNT);
+        publishWarning(instance.getClass().getSimpleName(), "Service stopped");
     }
 
 
@@ -191,12 +192,21 @@ public class Service<E>{
 
     private void createPublisher(Field field) {
         Thread publisherThread = new Thread(() -> {
-        Publisher l = new Publisher(field.getAnnotation(Publish.class).prefix().prefix + field.getAnnotation(Publish.class).destination(), field.getName());
-        try {
-            l.publish((Queue<String>) field.get(instance));
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        }});
+
+            Publish annotation = field.getAnnotation(Publish.class);
+            Publisher l = new Publisher(annotation.prefix().prefix + annotation.destination(), field.getName());
+
+            try {
+                if (!annotation.overrideURL().equals("")){
+                    l.overrideURL(annotation.overrideURL());
+                }
+
+                l.publish((Queue<String>) field.get(instance));
+            } catch (IllegalAccessException | JMSException | InterruptedException | URISyntaxException e) {
+                publishSevere(instance.getClass().getSimpleName(), "Failed to create publisher for " + field.getName(), e);
+            }
+
+        });
         publisherThread.setName("Annotation Handler: " + field.getName());
         publisherThread.start();
     }
@@ -218,18 +228,28 @@ public class Service<E>{
 
     private void createListener(Method method) {
         Thread listenerThread = new Thread(() -> {
-            Listener l = new Listener(method.getAnnotation(Listen.class).prefix().prefix + method.getAnnotation(Listen.class).destination(), method.getName());
-        l.listen((message) -> {
+            Listen annotation = method.getAnnotation(Listen.class);
+            Listener l = new Listener(annotation.prefix().prefix + annotation.destination(), method.getName());
+
             try {
-                if (method.getAnnotation(Listen.class).withServiceAsArg()){
-                    method.invoke(instance, message, this);
-                } else {
-                    method.invoke(instance, message);
+                if (!annotation.overrideURL().equals("")){
+                    l.overrideURL(annotation.overrideURL());
                 }
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new RuntimeException(e);
+
+                l.listen((message) -> {
+                    try {
+                        if (method.getAnnotation(Listen.class).withServiceAsArg()){
+                            method.invoke(instance, message, this);
+                        } else {
+                            method.invoke(instance, message);
+                        }
+                    } catch (IllegalAccessException | InvocationTargetException e) {
+                        publishWarning(instance.getClass().getSimpleName() + " : " +  method.getName(), "Has failed to process a message");
+                    }
+                });
+            } catch (JMSException | URISyntaxException e) {
+                publishSevere(instance.getClass().getSimpleName(), "Failed to create listener for " + method.getName(), e);
             }
-        });
         });
         listenerThread.setName("Annotation Handler: " + method.getName());
         listenerThread.start();
@@ -284,7 +304,7 @@ public class Service<E>{
             String[] args = nextLine.split(" ");
             switch (args[0].toLowerCase()) {
                 case "quit" -> {
-                    close();
+                    stop();
                     System.exit(0);
                     return;
                 }
@@ -314,7 +334,7 @@ public class Service<E>{
         try {
             method.invoke(instance, javalinConfig);
         } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new RuntimeException(e);
+            publishSevere(instance.getClass().getSimpleName(), "Failed to handle custom javalin config on " + method.getName(), e);
         }
     }
 
@@ -325,7 +345,7 @@ public class Service<E>{
                 .toList();
 
         if (mapper.size() > 1){
-            throw new MultipleJSONMapperMethodsException(instance.getClass().getSimpleName() + " has more than one custom JSON Mapper");
+            publishWarning(instance.getClass().getSimpleName(), "Has more than one custom JSON Mapper");
         }
 
         if (mapper.isEmpty()){
@@ -338,8 +358,7 @@ public class Service<E>{
         try {
             return (JsonMapper) method.invoke(instance);
         } catch (IllegalAccessException | InvocationTargetException e) {
-            publishError(e);
-            System.exit(1);
+            publishSevere(instance.getClass().getSimpleName(), "Failed to handle custom JsonMapper on " + method.getName(), e);
             return null;
         }
     }
@@ -370,37 +389,27 @@ public class Service<E>{
     }
 
     private void handleMethod(Method method, Class<? extends Annotation> annotationClass){
-        Thread thread = new Thread(() -> {
-            boolean port = false;
+            boolean willUseServiceAsArg = false;
             logger.info("Attempting to invoke " + method.getName());
 
             if (annotationClass.equals(RunAfter.class)) {
-                port = method.getAnnotation(RunAfter.class).withServiceAsArg();
+                willUseServiceAsArg = method.getAnnotation(RunAfter.class).withServiceAsArg();
             }
+
             if (annotationClass.equals(RunBefore.class)) {
-                port = method.getAnnotation(RunBefore.class).withServiceAsArg();
+                willUseServiceAsArg = method.getAnnotation(RunBefore.class).withServiceAsArg();
             }
 
-            if (port) {
-                try {
-                    method.invoke(instance, this);
-                    logger.info("Invoked " + method.getName() + " successfully");
-                } catch (IllegalAccessException | InvocationTargetException e) {
-                    publishError(e);
-                }
-                return;
-            }
-
-            checkForNoArgs(method);
             try {
-                method.invoke(instance);
+                if (willUseServiceAsArg) {
+                    method.invoke(instance, this);
+                } else {
+                    method.invoke(instance);
+                }
                 logger.info("Invoked " + method.getName() + " successfully");
             } catch (IllegalAccessException | InvocationTargetException e) {
-                publishError(e);
+                publishSevere(instance.getClass().getSimpleName(), "Failed to run initialization method " + method.getName(), e);
             }
-        });
-        thread.setName("Annotation Handler: " + method.getName());
-        thread.start();
     }
 
     /**
@@ -500,6 +509,7 @@ public class Service<E>{
         boolean withServiceAsArg() default false;
     }
 
+//        Thread thread = new Thread(() -> {
     /**
      * Marks a method to be run after the service starts.
      * <br><br>
@@ -542,10 +552,18 @@ public class Service<E>{
         Prefix prefix() default Prefix.TOPIC;
 
         /**
+         * Adding this will ignore the url created by the prefix and destination.
+         * Use this to listen to an external queue or topic
+         * @return a url to override the locally hosted amq url.
+         */
+        String overrideURL() default "";
+
+        /**
          * Marks this method as one that accepts the service as a second argument
          * @return Will add Service object when invoking method if true
          */
         boolean withServiceAsArg() default false;
+
     }
 
     /**
@@ -568,6 +586,13 @@ public class Service<E>{
          * @return if its a queue or topic
          */
         Prefix prefix() default Prefix.TOPIC;
+
+        /**
+         * Adding this will ignore the url created by the prefix and destination.
+         * Use this to listen to an external queue or topic
+         * @return a url to override the locally hosted amq url.
+         */
+        String overrideURL() default "";
     }
 }
 

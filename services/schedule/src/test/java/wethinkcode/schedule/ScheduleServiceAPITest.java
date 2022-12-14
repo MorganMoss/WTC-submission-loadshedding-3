@@ -1,7 +1,5 @@
 package wethinkcode.schedule;
 
-import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.time.LocalDate;
 
@@ -55,9 +53,9 @@ public class ScheduleServiceAPITest
 
     @AfterAll
     public static void destroyTestFixture(){
-        places.close();
-        stage.close();
-        schedule.close();
+        places.stop();
+        stage.stop();
+        schedule.stop();
     }
 
     @Test

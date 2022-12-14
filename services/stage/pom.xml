@@ -17,32 +17,8 @@
     <dependencies>
         <dependency>
             <groupId>wethinkcode</groupId>
-            <artifactId>service</artifactId>
-            <version>1.0</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.javalin</groupId>
-            <artifactId>javalin</artifactId>
-            <version>5.0.1</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.konghq</groupId>
-            <artifactId>unirest-java</artifactId>
-            <version>3.13.11</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>wethinkcode</groupId>
             <artifactId>data-objects</artifactId>
             <version>1.0</version>
-            <scope>compile</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.konghq</groupId>
-            <artifactId>unirest-java</artifactId>
-            <version>3.13.11</version>
             <scope>compile</scope>
         </dependency>
     </dependencies>

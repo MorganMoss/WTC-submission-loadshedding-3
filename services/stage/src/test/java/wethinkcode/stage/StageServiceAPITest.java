@@ -30,7 +30,7 @@ public class StageServiceAPITest
 
     @AfterAll
     public static void stopServer(){
-        service.close();
+        service.stop();
     }
 
     @Test

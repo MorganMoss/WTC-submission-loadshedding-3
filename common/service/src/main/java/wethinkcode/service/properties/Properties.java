@@ -13,7 +13,7 @@ import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import static wethinkcode.logger.Logger.formatted;
-import static wethinkcode.service.messages.ErrorHandler.publishError;
+import static wethinkcode.service.messages.AlertService.publishSevere;
 
 /**
  * The Properties class represents a collection of properties that are loaded from a properties file. This class allows properties to be specified via a properties file or via the command-line interface (CLI), and it uses reflection to populate fields in a Service instance with the properties that are loaded from the properties file.
@@ -55,8 +55,7 @@ public class Properties{
         try {
             new Properties(service, args);
         } catch (IOException e){
-            publishError(e);
-            System.exit(1);
+            publishSevere("Properties", "Failed to populate the fields of " + service.instance.getClass().getSimpleName(), e);
         }
     }
 

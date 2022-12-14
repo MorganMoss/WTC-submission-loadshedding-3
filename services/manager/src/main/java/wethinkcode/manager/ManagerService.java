@@ -13,12 +13,9 @@ import wethinkcode.web.WebService;
 import java.io.*;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Properties;
-import java.util.Scanner;
+import java.util.*;
 
-import static wethinkcode.service.messages.ErrorHandler.publishError;
+import static wethinkcode.service.messages.AlertService.publishWarning;
 import static wethinkcode.service.properties.Properties.getDefaultPropertiesStream;
 
 @Service.AsService
@@ -104,9 +101,10 @@ public class ManagerService {
                 response = Unirest.get(url).asJson();
             }
             // Log the result
-            System.out.println(response.getBody());
+            System.out.println("Result: " + response.getBody());
         } catch (UnirestException e) {
-            publishError(e);
+            publishWarning("Manager Service", "Failed to run Get Request \"" + Arrays.toString(inputArr) +"\"");
+
         }
     }
 
@@ -117,9 +115,9 @@ public class ManagerService {
             String jsonString = inputArr[2];
             HttpResponse<JsonNode> response = Unirest.post(url).body(jsonString).asJson();
             // Log the result
-            System.out.println(response.getBody());
+            System.out.println("Result: " + response.getBody());
         } catch (UnirestException e) {
-            publishError(e);
+            publishWarning("Manager Service", "Failed to run Post Request \"" + Arrays.toString(inputArr) +"\"");
         }
     }
 
