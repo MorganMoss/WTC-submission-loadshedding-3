@@ -18,7 +18,7 @@ public class Publisher {
     private final String name;
 
     public Publisher(String destinationName, String name) {
-        this.logger = formatted("Listener " + name, "\u001b[38;5;9m", "\u001b[38;5;209m");
+        this.logger = formatted("Publisher " + name, "\u001b[38;5;9m", "\u001b[38;5;209m");
         this.destinationName = destinationName;
         this.uri = Broker.BROKER_URI;
         this.name = name;

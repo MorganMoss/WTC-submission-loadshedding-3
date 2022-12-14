@@ -165,9 +165,12 @@ public class Service<E>{
      */
     public void stop() throws AlreadyStoppedException{
         if (stopped){
-            throw new AlreadyStoppedException("This service is designed to be stopped once");
+            publishWarning(instance.getClass().getSimpleName(),"This service is designed to be stopped once");
+            return;
         }
         stopped = true;
+        Method[] methods = instance.getClass().getMethods();
+        handleMethods(methods, OnShutdown.class);
         server.stop();
         SERVICE_COUNT--;
         logger.info("Active Service Count: " + SERVICE_COUNT);
@@ -400,6 +403,10 @@ public class Service<E>{
                 willUseServiceAsArg = method.getAnnotation(RunBefore.class).withServiceAsArg();
             }
 
+            if (annotationClass.equals(OnShutdown.class)) {
+                willUseServiceAsArg = method.getAnnotation(OnShutdown.class).withServiceAsArg();
+            }
+
             try {
                 if (willUseServiceAsArg) {
                     method.invoke(instance, this);
@@ -408,7 +415,7 @@ public class Service<E>{
                 }
                 logger.info("Invoked " + method.getName() + " successfully");
             } catch (IllegalAccessException | InvocationTargetException e) {
-                publishSevere(instance.getClass().getSimpleName(), "Failed to run initialization method " + method.getName(), e);
+                publishSevere(instance.getClass().getSimpleName(), "Failed to run method " + method.getName(), e);
             }
     }
 
@@ -509,7 +516,6 @@ public class Service<E>{
         boolean withServiceAsArg() default false;
     }
 
-//        Thread thread = new Thread(() -> {
     /**
      * Marks a method to be run after the service starts.
      * <br><br>
@@ -593,6 +599,24 @@ public class Service<E>{
          * @return a url to override the locally hosted amq url.
          */
         String overrideURL() default "";
+    }
+
+    /**
+     * Marks a method to be run as the service stops.
+     * <br><br>
+     * Requires that the method has no arguments, or Service typed as the instance class
+     * as it's only argument
+     * <br><br>
+     * This method can be a non-static or static member of the instance class
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.METHOD)
+    public @interface OnShutdown {
+        /**
+         * Marks this method as one that accepts the service as an argument
+         * @return Will add Service object when invoking method if true
+         */
+        boolean withServiceAsArg() default false;
     }
 }
 

@@ -121,6 +121,14 @@ public class ManagerService {
         }
     }
 
+
+    @Service.OnShutdown
+    public void closeAll(){
+
+        ports.keySet().forEach(key -> ports.get(key).stop());
+    }
+
+
     public static void main(String[] args) {
         new Service<>(new ManagerService()).execute(args);
     }
